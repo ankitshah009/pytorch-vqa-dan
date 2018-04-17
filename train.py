@@ -12,7 +12,8 @@ from tqdm import tqdm
 
 import config
 import data
-import model
+#import model
+from dan import TextEncoder, rDAN
 import utils
 
 
@@ -21,9 +22,7 @@ def update_learning_rate(optimizer, iteration):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
-
 total_iterations = 0
-
 
 def run(net, loader, optimizer, tracker, train=False, prefix='', epoch=0):
     """ Run an epoch over the given loader """
@@ -36,7 +35,7 @@ def run(net, loader, optimizer, tracker, train=False, prefix='', epoch=0):
         answ = []
         idxs = []
         accs = []
-
+    
     tq = tqdm(loader, desc='{} E{:03d}'.format(prefix, epoch), ncols=0)
     loss_tracker = tracker.track('{}_loss'.format(prefix), tracker_class(**tracker_params))
     acc_tracker = tracker.track('{}_acc'.format(prefix), tracker_class(**tracker_params))
@@ -50,9 +49,9 @@ def run(net, loader, optimizer, tracker, train=False, prefix='', epoch=0):
         v = Variable(v.cuda(async=True), **var_params)
         q = Variable(q.cuda(async=True), **var_params)
         a = Variable(a.cuda(async=True), **var_params)
-        q_len = Variable(q_len.cuda(async=True), **var_params)
-
-        out = net(v, q, q_len)
+        q_len = Variable(q_len.cuda(async=False), **var_params)
+        
+        out = net(v, q)
         nll = -log_softmax(out)
         loss = (nll * a / 10).sum(dim=1).mean()
         acc = utils.batch_accuracy(out.data, a.data).cpu()
@@ -98,8 +97,11 @@ def main():
 
     train_loader = data.get_loader(train=True)
     val_loader = data.get_loader(val=True)
-
-    net = nn.DataParallel(model.Net(train_loader.dataset.num_tokens)).cuda()
+    
+    vocab_size = train_loader.dataset.num_tokens
+    textencoder = TextEncoder(vocab_size, 300, 512)
+    textencoder.load_pretrained(train_loader.dataset.vocab['question'])
+    net = nn.DataParallel(rDAN(textencoder, 512, 512, config.max_answers, use_cuda=True)).cuda()
     optimizer = optim.Adam([p for p in net.parameters() if p.requires_grad])
 
     tracker = utils.Tracker()
