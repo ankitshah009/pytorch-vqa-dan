@@ -98,10 +98,16 @@ def main():
     train_loader = data.get_loader(train=True)
     val_loader = data.get_loader(val=True)
     
+    # Build Model
     vocab_size = train_loader.dataset.num_tokens
-    textencoder = TextEncoder(vocab_size, 300, 512)
-    textencoder.load_pretrained(train_loader.dataset.vocab['question'])
-    net = nn.DataParallel(rDAN(textencoder, 512, 512, config.max_answers, use_cuda=True)).cuda()
+    model = rDAN(num_embeddings=vocab_size, 
+                embedding_dim=config.embedding_dim, 
+                hidden_size=config.hidden_size, 
+                answer_size=config.max_answers)
+    if config.pretrained:
+        model.textencoder.load_pretrained(train_loader.dataset.vocab['question'])
+    net = nn.DataParallel(model).cuda()
+    
     optimizer = optim.Adam([p for p in net.parameters() if p.requires_grad])
 
     tracker = utils.Tracker()

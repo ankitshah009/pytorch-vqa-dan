@@ -37,27 +37,30 @@ class TextEncoder(nn.Module):
         self.embed.weight = nn.Parameter(pretrained_weight)       
 
 class rDAN(nn.Module):
-    def __init__(self, textencoder, visual_hidden_size, text_hidden_size, answer_size, k=2, use_cuda=False):
+    def __init__(self, num_embeddings, embedding_dim, hidden_size, answer_size, k=2):
         super(rDAN, self).__init__()
 
-        hidden_size = textencoder.bilstm.hidden_size
-        memory_size = 2 * hidden_size
+        # Build Text Encoder
+        self.textencoder = TextEncoder(num_embeddings=num_embeddings, 
+                                       embedding_dim=embedding_dim, 
+                                        hidden_size=hidden_size)
+
+        memory_size = 2 * hidden_size # bidirectional
         
-        # Visual
-        #self.visualencoder = visualencoder
-        self.Wv = nn.Linear(in_features=2048, out_features=visual_hidden_size)
-        self.Wvm = nn.Linear(in_features=memory_size, out_features=visual_hidden_size)
-        self.Wvh = nn.Linear(in_features=visual_hidden_size, out_features=1)
+        # Visual Attention
+        self.Wv = nn.Linear(in_features=2048, out_features=hidden_size)
+        self.Wvm = nn.Linear(in_features=memory_size, out_features=hidden_size)
+        self.Wvh = nn.Linear(in_features=hidden_size, out_features=1)
         self.P = nn.Linear(in_features=2048, out_features=memory_size)
     
-        # Text
-        self.textencoder = textencoder
-        self.Wu = nn.Linear(in_features=2*hidden_size, out_features=text_hidden_size)
-        self.Wum = nn.Linear(in_features=memory_size, out_features=text_hidden_size)
-        self.Wuh = nn.Linear(in_features=text_hidden_size, out_features=1)
+        # Textual Attention
+        self.Wu = nn.Linear(in_features=2*hidden_size, out_features=hidden_size)
+        self.Wum = nn.Linear(in_features=memory_size, out_features=hidden_size)
+        self.Wuh = nn.Linear(in_features=hidden_size, out_features=1)
  
         self.Wans = nn.Linear(in_features=memory_size, out_features=answer_size)
         
+        # Scoring Network
         self.classifier = Classifier(memory_size, hidden_size, answer_size, 0.5)
 
         # Dropout
@@ -70,47 +73,38 @@ class rDAN(nn.Module):
         # Loops
         self.k = k
 
-        self.use_cuda = use_cuda
+    def forward(self, visual, text):
 
-    def forward(self, feature, text, choices=None, max_length=50):
-        # Convert input into representations
-        # Visual (nregion, batch_size, dim)
-        batch_size = feature.shape[0]
-        feature = feature.view(batch_size, 2048, -1)
+        batch_size = visual.shape[0]
 
-        #visual_output = self.visualencoder.forward(image) # ( batch_size, dim, nregion)
-        #vns = visual_output.permute(2,0,1) # (nregion, batch_size, dim)
-        vns = feature.permute(2,0,1) # (nregion, batch_size, dim)
+        # Prepare Visual Features
+        visual = visual.view(batch_size, 2048, -1)
+        vns = visual.permute(2,0,1) # (nregion, batch_size, dim)
 
-        # Text Inputs are of shape (seq_len, batch_size)
-        text = text.permute(1,0)[:max_length]
+        # Prepare Textual Features
+        text = text.permute(1,0)
         uts = self.textencoder.forward(text) # (seq_len, batch_size, dim)
 
+        # Initialize Memory
         u = uts.mean(0)
         v = self.tanh( self.P( vns.mean(0) ))
-
         memory = v * u
 
-        seq_len = uts.shape[0]
-        # This is the main loop of the program
-        # K indicates the hop
+        # K indicates the number of hops
         for k in range(self.k):
-            # This iterate over the number of word tokens
-            # Visual
+            # Compute Visual Attention
             hv = self.tanh(self.Wv(self.dropout(vns))) * self.tanh(self.Wvm(self.dropout(memory)))
-
-            # (seq_len, batch_size, memory_size)
             # attention weights for every region
-            alphaV = self.softmax(self.Wvh(self.dropout(hv)))
-
+            alphaV = self.softmax(self.Wvh(self.dropout(hv))) #(seq_len, batch_size, memory_size)
+            # Sum over regions
             v = self.tanh(self.P(alphaV * vns)).sum(0)
+
             # Text 
             # (seq_len, batch_size, dim) * (batch_size, dim)
             hu = self.tanh(self.Wu(self.dropout(uts))) * self.tanh(self.Wum(self.dropout(memory)))
-
-            # (seq_len, batch_size, memory_size)
-            alphaU = self.softmax(self.Wuh(self.dropout(hu)))
-            
+            # attention weights for text features
+            alphaU = self.softmax(self.Wuh(self.dropout(hu)))  # (seq_len, batch_size, memory_size)
+            # Sum over sequence
             u = (alphaU * uts).sum(0) # Sum over sequence
             
             # Build Memory
