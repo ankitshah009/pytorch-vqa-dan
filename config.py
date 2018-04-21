@@ -1,4 +1,5 @@
 # paths
+movieqa_benchmark = '/Users/iammrhelo/Courses/10701/MovieQA_benchmark'
 qa_path = 'vqa'  # directory containing the question and annotation jsons
 train_path = 'mscoco/train2014'  # directory of training images
 val_path = 'mscoco/val2014'  # directory of validation images
@@ -21,6 +22,7 @@ pretrained = True
 embedding_dim = 300
 hidden_size = 512
 max_answers = 3000
+movie_answer_size = 5
 
 # training config
 epochs = 50

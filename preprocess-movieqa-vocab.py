@@ -14,6 +14,9 @@ subtt_base = './movieqa/subtt'
 
 nlp = spacy.load('en')
 
+_PAD_IDX = 0
+_UNK_IDX = 1
+
 def tokenize(text):
     doc = nlp(text, disable=['parser', 'tagger', 'ner'])
     tokens = [ token.text for token in doc ]
@@ -23,7 +26,7 @@ def tokenize_and_index(text, vocab):
     tokens = tokenize(text)
     word_indices = []
     for word in tokens:
-        index = vocab.get(word,0)
+        index = vocab.get(word,_UNK_IDX)
         word_indices.append(index)
     return word_indices
 
@@ -74,7 +77,8 @@ def build_vocab(vl_qa, qas, min_freq):
         itos.append(word)
 
     stoi = dict()
-    stoi["<unk>"] = 0 # Unknown word as 0
+    stoi["<pad>"] = _PAD_IDX # Pad token as 0
+    stoi["<unk>"] = _UNK_IDX # Unknown word as 1
 
     stoi.update({tok: i for i, tok in enumerate(itos)})
     print("min_freq", min_freq,'vocab',len(stoi))
@@ -109,7 +113,8 @@ def preprocess_vocab(vl_qa, qas, vocab):
         data[ qa.qid ] = {
             'question': question,
             'answers': answers,
-            'subtitles': subtitles
+            'subtitles': subtitles,
+            'correct_index': qa.correct_index
         }
     return data
 
