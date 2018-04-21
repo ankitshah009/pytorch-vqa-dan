@@ -32,28 +32,22 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
         tracker_class, tracker_params = tracker.MeanMonitor, {}
         answ = []
         accs = []
-    
-    tq = tqdm(dataset.loader(), desc='{} E{:03d}'.format(prefix, epoch), ncols=0)
+    niter = int(len(dataset) / dataset.batch_size)
+    tq = tqdm(dataset.loader(), desc='{} E{:03d}'.format(prefix, epoch), ncols=0, total=niter)
     loss_tracker = tracker.track('{}_loss'.format(prefix), tracker_class(**tracker_params))
     acc_tracker = tracker.track('{}_acc'.format(prefix), tracker_class(**tracker_params))
 
-    #criterion = nn.CrossEntropyLoss().cuda()
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss().cuda()
    
     for q, s, la, c in tq:
         var_params = {
             'volatile': not train,
             'requires_grad': False,
         }
-        #q = Variable(q.cuda(async=True), **var_params)
-        #s = Variable(s.cuda(async=True), **var_params)
-        #la = [ Variable(a.cuda(async=True), **var_params) for a in la ]
-        #c = Variable(c.cuda(async=False), **var_params) # correct answers
-
-        q = Variable(q, **var_params)
-        s = Variable(s, **var_params)
-        la = [ Variable(a, **var_params) for a in la ]
-        c = Variable(c, **var_params) # correct answers
+        q = Variable(q.cuda(async=True), **var_params)
+       	s = Variable(s.cuda(async=True), **var_params)
+        la = [ Variable(a.cuda(async=True), **var_params) for a in la ]
+        c = Variable(c.cuda(async=False), **var_params) # correct answers
         
         out = net(q, s, la)
         loss = criterion(out, c)
@@ -110,8 +104,7 @@ def main():
                 hidden_size=config.hidden_size, 
                 answer_size=config.movie_answer_size)
 
-    #net = nn.DataParallel(model).cuda()
-    net = nn.DataParallel(model)
+    net = nn.DataParallel(model).cuda()
     
     optimizer = optim.Adam([p for p in net.parameters() if p.requires_grad])
 

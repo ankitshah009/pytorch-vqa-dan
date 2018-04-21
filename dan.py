@@ -198,7 +198,7 @@ class MovieDAN(nn.Module):
         # Prepare Question Features
         qts = self.textencoder.forward(question) # (seq_len, batch_size, dim)
 
-        sts = self.textencoder.forward(subtitles) #
+        sts = self.textencoder.forward(subtitles[:100]) #
 
         # Initialize Memory
         q = qts.mean(0)
