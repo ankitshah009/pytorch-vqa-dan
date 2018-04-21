@@ -37,21 +37,30 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
     loss_tracker = tracker.track('{}_loss'.format(prefix), tracker_class(**tracker_params))
     acc_tracker = tracker.track('{}_acc'.format(prefix), tracker_class(**tracker_params))
 
-    criterion = nn.CrossEntropy().cuda()
+    #criterion = nn.CrossEntropyLoss().cuda()
+    criterion = nn.CrossEntropyLoss()
    
     for q, s, la, c in tq:
         var_params = {
             'volatile': not train,
             'requires_grad': False,
         }
-        q = Variable(q.cuda(async=True), **var_params)
-        s = Variable(s.cuda(async=True), **var_params)
-        la = [ Variable(a.cuda(async=True), **var_params) for a in la ]
-        c = Variable(c.cuda(async=False), **var_params) # correct answers
+        #q = Variable(q.cuda(async=True), **var_params)
+        #s = Variable(s.cuda(async=True), **var_params)
+        #la = [ Variable(a.cuda(async=True), **var_params) for a in la ]
+        #c = Variable(c.cuda(async=False), **var_params) # correct answers
+
+        q = Variable(q, **var_params)
+        s = Variable(s, **var_params)
+        la = [ Variable(a, **var_params) for a in la ]
+        c = Variable(c, **var_params) # correct answers
         
         out = net(q, s, la)
         loss = criterion(out, c)
-        acc = utils.batch_accuracy(out.data, c.data).cpu()
+
+        # Compute our own accuracy
+        _, pred = out.data.max(dim=1)
+        acc = (pred == c.data).float()
 
         if train:
             global total_iterations
@@ -64,7 +73,8 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
             total_iterations += 1
         else:
             # store information about evaluation of this minibatch
-            _, answer = out.data.cpu().max(dim=1)
+            #_, answer = out.data.cpu().max(dim=1)
+            _, answer = out.data.max(dim=1)
             answ.append(answer.view(-1))
             accs.append(acc.view(-1))
 
@@ -76,8 +86,7 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
     if not train:
         answ = list(torch.cat(answ, dim=0))
         accs = list(torch.cat(accs, dim=0))
-        idxs = list(torch.cat(idxs, dim=0))
-        return answ, accs, idxs
+        return answ, accs
 
 
 def main():
@@ -101,7 +110,8 @@ def main():
                 hidden_size=config.hidden_size, 
                 answer_size=config.movie_answer_size)
 
-    net = nn.DataParallel(model).cuda()
+    #net = nn.DataParallel(model).cuda()
+    net = nn.DataParallel(model)
     
     optimizer = optim.Adam([p for p in net.parameters() if p.requires_grad])
 

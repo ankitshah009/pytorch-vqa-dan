@@ -19,15 +19,16 @@ def get_dataset(train=False, val=False, test=False):
     if train:
         split = 'train'
     elif val:
-        split = 'valid'
+        split = 'val'
     else:
         split = 'test'
-    data_pickle = './movieqa/movieqa.{}.pickle'
-    dataset = MovieQADataset(data_pickle, config.batch_size, shuffle=train)
+    data_pickle = './movieqa/movieqa.{}.pickle'.format(split)
+    vocab_pickle = './movieqa/movieqa.vocab'
+    dataset = MovieQADataset(data_pickle, vocab_pickle, config.batch_size, shuffle=train)
     return dataset
 
 class MovieQADataset(object):
-    def __init__(self, data_pickle, vocab_pickle batch_size, shuffle=False):
+    def __init__(self, data_pickle, vocab_pickle, batch_size, shuffle=False):
         super(MovieQADataset, self).__init__()
         with open(data_pickle,'rb') as fin:
             data = pickle.load(fin)
@@ -84,12 +85,4 @@ class MovieQADataset(object):
             yield tensor_question, tensor_subtitles, list_tensor_answer, tensor_correct_index
 
 if __name__ == "__main__":
-    data_pickle ='./movieqa/movieqa.train.pickle'
-    batch_size = 8
-    dataset = MovieQADataset(data_pickle, batch_size)
-    dataset[0]
-
-    loader = data.DataLoader(dataset, batch_size=8, shuffle=True)
-
-    for batch in dataset.loader():
-        import pdb; pdb.set_trace()
+    pass

@@ -67,7 +67,8 @@ class AnswerEncoder(nn.Module):
 
 class Attention(nn.Module):
     def __init__(self, input_size, hidden_size):
-        
+        super(Attention, self).__init__()
+
         memory_size = 2 * hidden_size
         self.W = nn.Linear(in_features=input_size, out_features=hidden_size)
         self.Wm = nn.Linear(in_features=memory_size, out_features=hidden_size)
@@ -180,7 +181,7 @@ class MovieDAN(nn.Module):
                                             hidden_size=hidden_size)
         
         # Memory & Answer Scoring
-        self.scoring = nn.BiLinear(memory_size, hidden_size, answer_size)
+        self.scoring = nn.Bilinear(memory_size, hidden_size, 1)
         
         # Dropout
         self.dropout = nn.Dropout(p=0.5)
@@ -219,18 +220,28 @@ class MovieDAN(nn.Module):
             memory = memory + q * s
         
         # ( batch_size, memory_size )
-
         # We compute scores using a classifier
-        list_answer_features []
+        list_answer_features = []
         for answers in list_answers:
             features = self.answerencoder.forward(answers)
             list_answer_features.append(features)
         
-        answer_features = torch.cat(list_answer_features)
+      
+        answer_features = torch.stack(list_answer_features) #(batch_size, answer_size, hidden_size)
+      
+        batch_size, memory_size = memory.shape
+        batch_size, answer_size, hidden_size = answer_features.shape
+        # memory: (batch_size, memory_size)
         # ( batch_size, hidden_size )
-
         # Bilinear scoring
-        scores = self.scoring(memory, answer_features)
+        memory = memory.unsqueeze(1) # (batch_size, answer_size, memory_size)
+        memory = memory.expand(batch_size, answer_size, memory_size)
+        memory = memory.contiguous().view(-1, memory_size) # batch_size * answer_size, memory_size
+        
+        answer_features = answer_features.view(-1, hidden_size) # batch_size * answer_size, hidden_size)
+
+        scores = self.scoring(memory.view(-1,memory_size), answer_features.view(-1, hidden_size))
+        scores = scores.view(batch_size, answer_size)
         return scores
 
 if __name__ == "__main__":
