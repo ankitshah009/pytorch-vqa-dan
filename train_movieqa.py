@@ -26,12 +26,9 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
     """ Run an epoch over the given loader """
     if train:
         net.train()
-        tracker_class, tracker_params = tracker.MovingMeanMonitor, {'momentum': 0.99}
     else:
         net.eval()
-        tracker_class, tracker_params = tracker.MeanMonitor, {}
-        answ = []
-        accs = []
+
     niter = int(len(dataset) / dataset.batch_size)
     tq = tqdm(dataset.loader(), desc='{} E{:03d}'.format(prefix, epoch), ncols=0, total=niter)
     loss_tracker = tracker.track('{}_loss'.format(prefix), tracker_class(**tracker_params))
@@ -39,6 +36,10 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
 
     criterion = nn.CrossEntropyLoss().cuda()
    
+    total_count = 0
+    total_acc = 0
+    total_loss = 0
+
     for q, s, la, c in tq:
         var_params = {
             'volatile': not train,
@@ -52,6 +53,7 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
         out = net(q, s, la)
         loss = criterion(out, c)
 
+     
         # Compute our own accuracy
         _, pred = out.data.max(dim=1)
         acc = (pred == c.data).float()
@@ -65,23 +67,14 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
             optimizer.step()
 
             total_iterations += 1
-        else:
-            # store information about evaluation of this minibatch
-            #_, answer = out.data.cpu().max(dim=1)
-            _, answer = out.data.max(dim=1)
-            answ.append(answer.view(-1))
-            accs.append(acc.view(-1))
-
-        loss_tracker.append(loss.data[0])
-        acc_tracker.append(acc.mean())
-        fmt = '{:.4f}'.format
-        tq.set_postfix(loss=fmt(loss_tracker.mean.value), acc=fmt(acc_tracker.mean.value))
-
-    if not train:
-        answ = list(torch.cat(answ, dim=0))
-        accs = list(torch.cat(accs, dim=0))
-        return answ, accs
-
+        
+        total_count += acc.shape[0]
+        total_loss += loss.data[0] * acc.shape[0]
+        total_acc += acc.sum().numpy()
+    
+    acc = total_acc / total_count
+    loss = total_loss / total_count
+    print("loss",loss,"acc",acc)    
 
 def main():
     if len(sys.argv) > 1:
@@ -112,22 +105,8 @@ def main():
     config_as_dict = {k: v for k, v in vars(config).items() if not k.startswith('__')}
 
     for i in range(config.epochs):
-        _ = run(net, train_dataset, optimizer, tracker, train=True, prefix='train', epoch=i)
-        r = run(net, val_dataset, optimizer, tracker, train=False, prefix='val', epoch=i)
-
-        results = {
-            'name': name,
-            'tracker': tracker.to_dict(),
-            'config': config_as_dict,
-            'weights': net.state_dict(),
-            'eval': {
-                'answers': r[0],
-                'accuracies': r[1],
-            },
-            'vocab': train_dataset.vocab,
-        }
-        torch.save(results, target_name)
-
+        run(net, train_dataset, optimizer, tracker, train=True, prefix='train', epoch=i)
+        run(net, val_dataset, optimizer, tracker, train=False, prefix='val', epoch=i)
 
 if __name__ == '__main__':
     main()
