@@ -154,6 +154,14 @@ class rDAN(nn.Module):
 
         return scores
 
+class SubtitleEncoder(nn.Module):
+    def __init__(self):
+        super(SubtitleEncoder, self).__init__()
+        pass
+
+    def forward(self, subtitles):
+        pass
+
 class MovieDAN(nn.Module):
     def __init__(self, num_embeddings, embedding_dim, hidden_size, answer_size, k=2):
         super(MovieDAN, self).__init__()
@@ -197,7 +205,7 @@ class MovieDAN(nn.Module):
         
         # Prepare Question Features
         qts = self.textencoder.forward(question) # (seq_len, batch_size, dim)
-
+        import pdb; pdb.set_trace()
         sts = self.textencoder.forward(subtitles[:100]) #
 
         # Initialize Memory

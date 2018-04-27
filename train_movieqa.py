@@ -15,6 +15,8 @@ import movie
 from dan import TextEncoder, MovieDAN
 import utils
 
+torch.backends.cudnn.enabled = False
+
 def update_learning_rate(optimizer, iteration):
     lr = config.initial_lr * 0.5**(float(iteration) / config.lr_halflife)
     for param_group in optimizer.param_groups:
@@ -31,8 +33,8 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
 
     niter = int(len(dataset) / dataset.batch_size)
     tq = tqdm(dataset.loader(), desc='{} E{:03d}'.format(prefix, epoch), ncols=0, total=niter)
-    loss_tracker = tracker.track('{}_loss'.format(prefix), tracker_class(**tracker_params))
-    acc_tracker = tracker.track('{}_acc'.format(prefix), tracker_class(**tracker_params))
+    #loss_tracker = tracker.track('{}_loss'.format(prefix), tracker_class(**tracker_params))
+    #acc_tracker = tracker.track('{}_acc'.format(prefix), tracker_class(**tracker_params))
 
     criterion = nn.CrossEntropyLoss().cuda()
    
@@ -45,10 +47,10 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
             'volatile': not train,
             'requires_grad': False,
         }
-        q = Variable(q.cuda(async=True), **var_params)
-       	s = Variable(s.cuda(async=True), **var_params)
-        la = [ Variable(a.cuda(async=True), **var_params) for a in la ]
-        c = Variable(c.cuda(async=False), **var_params) # correct answers
+        q = Variable(q.cuda(async=True))
+       	s = Variable(s.cuda(async=True))
+        la = [ Variable(a.cuda(async=True)) for a in la ]
+        c = Variable(c.cuda(async=False)) # correct answers
         
         out = net(q, s, la)
         loss = criterion(out, c)
@@ -70,7 +72,8 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
         
         total_count += acc.shape[0]
         total_loss += loss.data[0] * acc.shape[0]
-        total_acc += acc.sum().numpy()
+        total_acc += acc.sum()
+	
     
     acc = total_acc / total_count
     loss = total_loss / total_count

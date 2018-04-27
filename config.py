@@ -19,14 +19,14 @@ central_fraction = 0.875  # only take this much of the centre when scaling and c
 
 # model config
 pretrained = True
-embedding_dim = 300
-hidden_size = 512
+embedding_dim = 128
+hidden_size = 256
 max_answers = 3000
 movie_answer_size = 5
 
 # training config
 epochs = 50
-batch_size = 128
+batch_size = 4
 initial_lr = 1e-3  # default Adam lr
 lr_halflife = 50000  # in iterations
 data_workers = 8
