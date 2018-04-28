@@ -174,7 +174,6 @@ class SubtitleEncoder(nn.Module):
         x5 = self.pool2(x4)
         x6 = x5.permute(2, 0, 1, 3)
         x7 = x6.contiguous().view(x6.size()[0], subtitles.size()[1], -1)
-        import pdb; pdb.set_trace()
         return x7
 
 class MovieDAN(nn.Module):

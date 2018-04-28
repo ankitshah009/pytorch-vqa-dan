@@ -2,6 +2,8 @@ import sys
 import os.path
 import math
 import json
+import gc
+import resource
 
 import torch
 import torch.nn as nn
@@ -22,8 +24,6 @@ def update_learning_rate(optimizer, iteration):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
-total_iterations = 0
-
 def run(net, dataset, optimizer, train=False, prefix='', epoch=0):
     """ Run an epoch over the given loader """
     if train:
@@ -39,15 +39,21 @@ def run(net, dataset, optimizer, train=False, prefix='', epoch=0):
     total_count = 0
     total_acc = 0
     total_loss = 0
+    total_iterations = 0
     
     for q, s, la, c in tq:
         var_params = {
             'requires_grad': False,
         }
-        q = Variable(q.cuda(async=True))
-       	s = Variable(s.cuda(async=True))
-        la = [ Variable(a.cuda(async=True)) for a in la ]
-        c = Variable(c.cuda(async=False)) # correct answers
+#        q = Variable(q.cuda(async=True))
+#       	s = Variable(s.cuda(async=True))
+#        la = [ Variable(a.cuda(async=True)) for a in la ]
+#        c = Variable(c.cuda(async=False)) # correct answers
+
+        q = Variable(q).cuda()
+       	s = Variable(s).cuda()
+        la = [Variable(a).cuda() for a in la]
+        c = Variable(c).cuda() # correct answers
 
 #        import pdb; pdb.set_trace()
         out = net(q, s, la)
@@ -59,7 +65,6 @@ def run(net, dataset, optimizer, train=False, prefix='', epoch=0):
         acc = (pred == c.data).float()
 
         if train:
-            global total_iterations
             update_learning_rate(optimizer, total_iterations)
 
             optimizer.zero_grad()
@@ -67,10 +72,25 @@ def run(net, dataset, optimizer, train=False, prefix='', epoch=0):
             optimizer.step()
 
             total_iterations += 1
-        
+
         total_count += acc.shape[0]
         total_loss += loss.data[0] * acc.shape[0]
         total_acc += acc.sum()
+
+        for obj in gc.get_objects():
+            try:
+                if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                    pass
+                    #print(type(obj), obj.size())
+            except:
+                pass
+
+        gc.collect()
+#        import pdb; pdb.set_trace()
+        
+        if total_iterations % 5 == 0:
+            max_mem_used = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+#            print("{:.2f} MB".format(max_mem_used / 1024))
 	
     
     acc = total_acc / total_count
