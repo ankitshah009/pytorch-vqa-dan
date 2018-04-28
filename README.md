@@ -17,6 +17,7 @@ Python version 3
 - torch
 - torchvision
 - tqdm
+- torchtext
 
 Plotting
 - numpy
