@@ -155,12 +155,27 @@ class rDAN(nn.Module):
         return scores
 
 class SubtitleEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, embedding):
         super(SubtitleEncoder, self).__init__()
-        pass
+        # Define CNN Network Parmas here
+        self.embed = embedding
+        self.conv1 = nn.Conv2d(1, 4, 5)
+        self.pool1 = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(4, 9, 5)
+        self.pool2 = nn.MaxPool2d(2, 2)
 
     def forward(self, subtitles):
-        pass
+        # Define Forward params here
+        x0 = subtitles.permute(1, 0)
+        x1 = self.embed(x0)
+        x2 = self.conv1(x1.unsqueeze(1))
+        x3 = self.pool1(x2)
+        x4 = self.conv2(x3)
+        x5 = self.pool2(x4)
+        x6 = x5.permute(2, 0, 1, 3)
+        x7 = x6.contiguous().view(x6.size()[0], subtitles.size()[1], -1)
+        import pdb; pdb.set_trace()
+        return x7
 
 class MovieDAN(nn.Module):
     def __init__(self, num_embeddings, embedding_dim, hidden_size, answer_size, k=2):
@@ -171,23 +186,27 @@ class MovieDAN(nn.Module):
                                        embedding_dim=embedding_dim, 
                                         hidden_size=hidden_size)
 
+	# Share Embedding Matrix
+        self.subtitleencoder = SubtitleEncoder(self.textencoder.embed)
+
         memory_size = 2 * hidden_size # bidirectional
         
         # Visual Attention
-        self.attnV = Attention(2048, hidden_size)
-        self.P = nn.Linear(in_features=2048, out_features=memory_size)
+#        self.attnV = Attention(2048, hidden_size)
+        self.P = nn.Linear(in_features=261, out_features=memory_size)
     
         # Question Attention
-        self.attnQ = Attention(2*hidden_size, hidden_size)
+        self.attnQ = Attention(memory_size, hidden_size)
 
         # Subtitle Attention
-        self.attnS = Attention(2*hidden_size, hidden_size)
+        self.attnS = Attention(261, hidden_size)
 
         # Answer Encoder
         self.answerencoder = AnswerEncoder(num_embeddings=num_embeddings, 
                                             embedding_dim=embedding_dim, 
                                             hidden_size=hidden_size)
-        
+
+        self.answerencoder.embed = self.textencoder.embed 
         # Memory & Answer Scoring
         self.scoring = nn.Bilinear(memory_size, hidden_size, 1)
         
@@ -202,15 +221,13 @@ class MovieDAN(nn.Module):
         self.k = k
 
     def forward(self, question, subtitles, list_answers):
-        
         # Prepare Question Features
         qts = self.textencoder.forward(question) # (seq_len, batch_size, dim)
-        import pdb; pdb.set_trace()
-        sts = self.textencoder.forward(subtitles[:100]) #
-
+        sts = self.subtitleencoder.forward(subtitles) #
+        
         # Initialize Memory
         q = qts.mean(0)
-        s = sts.mean(0)
+        s = self.tanh(self.P(sts.mean(0)))
         memory = q * s
 
         # K indicates the number of hops
@@ -222,11 +239,11 @@ class MovieDAN(nn.Module):
 
             # Subtitle Attention
             alphaS = self.attnS(sts, memory)
-            s = (alphaS * sts).sum(0)
+            s = (self.tanh(self.P(alphaS * sts))).sum(0)
    
             # Build Memory
             memory = memory + q * s
-        
+            
         # ( batch_size, memory_size )
         # We compute scores using a classifier
         list_answer_features = []
@@ -253,4 +270,5 @@ class MovieDAN(nn.Module):
         return scores
 
 if __name__ == "__main__":
-    pass
+    "Hello Shijie"
+    

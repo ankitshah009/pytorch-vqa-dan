@@ -24,7 +24,7 @@ def update_learning_rate(optimizer, iteration):
 
 total_iterations = 0
 
-def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
+def run(net, dataset, optimizer, train=False, prefix='', epoch=0):
     """ Run an epoch over the given loader """
     if train:
         net.train()
@@ -33,25 +33,23 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
 
     niter = int(len(dataset) / dataset.batch_size)
     tq = tqdm(dataset.loader(), desc='{} E{:03d}'.format(prefix, epoch), ncols=0, total=niter)
-    #loss_tracker = tracker.track('{}_loss'.format(prefix), tracker_class(**tracker_params))
-    #acc_tracker = tracker.track('{}_acc'.format(prefix), tracker_class(**tracker_params))
 
     criterion = nn.CrossEntropyLoss().cuda()
    
     total_count = 0
     total_acc = 0
     total_loss = 0
-
+    
     for q, s, la, c in tq:
         var_params = {
-            'volatile': not train,
             'requires_grad': False,
         }
         q = Variable(q.cuda(async=True))
        	s = Variable(s.cuda(async=True))
         la = [ Variable(a.cuda(async=True)) for a in la ]
         c = Variable(c.cuda(async=False)) # correct answers
-        
+
+#        import pdb; pdb.set_trace()
         out = net(q, s, la)
         loss = criterion(out, c)
 
@@ -77,7 +75,7 @@ def run(net, dataset, optimizer, tracker, train=False, prefix='', epoch=0):
     
     acc = total_acc / total_count
     loss = total_loss / total_count
-    print("loss",loss,"acc",acc)    
+    print("loss: {} acc {}".format(loss, acc))
 
 def main():
     if len(sys.argv) > 1:
@@ -104,12 +102,11 @@ def main():
     
     optimizer = optim.Adam([p for p in net.parameters() if p.requires_grad])
 
-    tracker = utils.Tracker()
     config_as_dict = {k: v for k, v in vars(config).items() if not k.startswith('__')}
 
     for i in range(config.epochs):
-        run(net, train_dataset, optimizer, tracker, train=True, prefix='train', epoch=i)
-        run(net, val_dataset, optimizer, tracker, train=False, prefix='val', epoch=i)
+        run(net, train_dataset, optimizer, train=True, prefix='train', epoch=i)
+        run(net, val_dataset, optimizer, train=False, prefix='val', epoch=i)
 
 if __name__ == '__main__':
     main()

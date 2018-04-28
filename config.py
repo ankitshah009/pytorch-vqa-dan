@@ -26,7 +26,7 @@ movie_answer_size = 5
 
 # training config
 epochs = 50
-batch_size = 4
+batch_size = 16
 initial_lr = 1e-3  # default Adam lr
 lr_halflife = 50000  # in iterations
 data_workers = 8
