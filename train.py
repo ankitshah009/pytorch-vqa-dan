@@ -76,6 +76,9 @@ def run(net, loader, optimizer, tracker, train=False, prefix='', epoch=0):
         acc_tracker.append(acc.mean())
         fmt = '{:.4f}'.format
         tq.set_postfix(loss=fmt(loss_tracker.mean.value), acc=fmt(acc_tracker.mean.value))
+	if not os.path.exists('model_'+str(config.run_number)):
+		os.mkdir('model_'+str(config.run_number))
+	torch.save(net.state_dict(),'model_' + str(config.run_number)+'/model_path.' + str(config.run_number) + '_' +str(epoch)+  '.pkl')
 
     if not train:
         answ = list(torch.cat(answ, dim=0))
